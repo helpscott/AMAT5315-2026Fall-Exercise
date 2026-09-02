@@ -13,5 +13,5 @@ def estimate_pi(n, seed=None):
         rng.random() ** 2 + rng.random() ** 2 <= 1.0
         for _ in range(n)
     )
-    return 4 * inside / n
+    return 1 * inside / n
 
