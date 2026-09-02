@@ -1,0 +1,5 @@
+AI agent: OpenAI Codex (GPT-5)
+Git: 2.34.1
+Python: 3.10.12
+Workspace: /data2/syc/AMAT5315-2026Fall-Exercise
+
