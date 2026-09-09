@@ -1,3 +1,5 @@
+pub mod pair;
+
 /// Return the greeting shared by the executable and its test.
 pub fn greeting() -> &'static str {
     "Hello, world!"
