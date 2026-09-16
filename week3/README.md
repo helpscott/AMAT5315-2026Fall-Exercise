@@ -130,6 +130,13 @@ The copied links are:
 
 ## Results and limits
 
+The Part 1 checks give `<|M|>=0.956746` with acceptance `0.041466` at
+`T=1.8`, and `<|M|>=0.045025` with acceptance `0.461244` at `T=3.0`.
+These meet the cold interval `0.95`–`0.965` and hot limit `0.06`. The
+`T=3.0`/`3.1` energy-histogram log ratio has fitted slope `0.009246`, versus
+the predicted `0.010753`; among bins containing more than 20 samples, its
+largest residual from the fitted line is `0.258`, below the `0.5` target.
+
 The measured Metropolis peaks are `2.35100` for `L=32` and `2.31605` for
 `L=64`, giving `Tc=2.28109`. This differs from the exact
 `2/ln(1+sqrt(2)) = 2.26919` by `+0.525%`, within the 2% target. The three
@@ -156,19 +163,22 @@ by a factor of about `546`.
 
 ## Repeatability and final acceptance
 
-The seeded output is byte reproducible. A compact check is:
+The seeded output is byte reproducible, while changing the seed changes the
+sample. Check both properties with the same cold run used above:
 
 ```bash
-rm -rf /tmp/ising-repeat-a /tmp/ising-repeat-b
-ising --update metropolis --l 16 --t-from 2.0 --t-to 2.1 --t-step 0.1 --discard 100 --measure 200 --every 20 --seed 2026 --out /tmp/ising-repeat-a
-ising --update metropolis --l 16 --t-from 2.0 --t-to 2.1 --t-step 0.1 --discard 100 --measure 200 --every 20 --seed 2026 --out /tmp/ising-repeat-b
-diff -ru /tmp/ising-repeat-a /tmp/ising-repeat-b
+ising --update metropolis --l 64 --t-from 1.8 --t-to 1.8 --t-step 0.1 --discard 2000 --measure 2000 --seed 2026 --out runs/a
+ising --update metropolis --l 64 --t-from 1.8 --t-to 1.8 --t-step 0.1 --discard 2000 --measure 2000 --seed 2026 --out runs/b
+diff runs/a/series.jsonl runs/b/series.jsonl && echo IDENTICAL
+ising --update metropolis --l 64 --t-from 1.8 --t-to 1.8 --t-step 0.1 --discard 2000 --measure 2000 --seed 2027 --out runs/c
+cmp -s runs/a/series.jsonl runs/c/series.jsonl && echo "ERROR: seed ignored" || echo "DIFFERENT SEED, DIFFERENT SAMPLE"
 ```
 
 Final acceptance from a clean clone consists of:
 
 1. `cargo test` passes, including the CLI contract tests.
-2. The repeatability `diff` is empty.
+2. The repeatability command prints `IDENTICAL`, and the changed-seed command
+   prints `DIFFERENT SEED, DIFFERENT SAMPLE`.
 3. All commands above recreate their named files without editing source.
 4. `spins.jsonl` is below 5 MB and its raw GitHub URL returns HTTP 200.
 5. Each viewer PNG opens and visibly shows the official viewer stamp, the raw
