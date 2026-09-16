@@ -1,0 +1,3 @@
+L=32 T_peak=2.350998 max_chi=1952.587698
+L=64 T_peak=2.316046 max_chi=1473.095611
+Tc_extrapolated=2.281093
