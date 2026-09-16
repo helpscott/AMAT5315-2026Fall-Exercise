@@ -1,15 +1,49 @@
 #!/usr/bin/env python3
-import pathlib,numpy as np
-import matplotlib;matplotlib.use('Agg');import matplotlib.pyplot as plt
-from common import rows,tau_int
-ROOT=pathlib.Path(__file__).resolve().parents[1];E=ROOT/'evidence';E.mkdir(exist_ok=True)
-fig,ax=plt.subplots(1,2,figsize=(10,4))
-for T,c in [(2.3,'C0'),(3.0,'C1')]:
- p=ROOT/'artifacts'/f'T{T:.1f}'/'series.jsonl';
- if not p.exists():continue
- x=np.abs(np.array([r['M'] for r in rows(p) if abs(r['T']-T)<1e-6])[:5000]); x-=x.mean();v=np.dot(x,x)/len(x); rho=[1.0]+[np.dot(x[:-k],x[k:])/(len(x)-k)/v for k in range(1,min(500,len(x)-1))]; ax[0].plot(rho,label=f'T={T}',color=c)
- bs=[1,2,4,8,16,32,64,128,256,512,1024]; se=[]
- for b in bs:
-  z=np.array([x[i:i+b].mean() for i in range(0,len(x)-b+1,b)]);se.append(z.std(ddof=1)/np.sqrt(len(z)))
- ax[1].plot(bs,se,'o-',label=f'T={T}',color=c)
-ax[0].set_xlabel('lag');ax[0].set_ylabel('ACF');ax[1].set_xscale('log');ax[1].set_xlabel('block length');ax[1].set_ylabel('SE');ax[0].legend();ax[1].legend();plt.tight_layout();plt.savefig(E/'acf-binning.png',dpi=150);plt.close()
+"""Show the autocorrelation and block-error growth at L=64, T=2.3."""
+
+import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from common import (
+    EVIDENCE,
+    autocorrelation,
+    block_standard_error,
+    magnetizations,
+    merged_metropolis,
+    tau_int,
+)
+
+
+EVIDENCE.mkdir(exist_ok=True)
+values = np.abs(magnetizations(merged_metropolis(64)[2.3]))
+rho = autocorrelation(values)
+correlation_time = tau_int(values)
+block_lengths = np.asarray([1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 4000, 5000])
+errors = np.asarray([block_standard_error(values, int(length))[0] for length in block_lengths])
+
+fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.2))
+maximum_lag = min(4000, len(rho) - 1)
+axes[0].plot(np.arange(maximum_lag + 1), rho[: maximum_lag + 1], color="C3")
+axes[0].axhline(0, color="0.6", lw=0.8)
+axes[0].axvline(correlation_time, color="k", ls="--", label=f"tau={correlation_time:.1f}")
+axes[0].set(xlabel="lag t (sweeps)", ylabel="autocorrelation of |M|")
+axes[0].legend()
+axes[1].plot(block_lengths, errors, "o-", color="C0")
+axes[1].set_xscale("log")
+axes[1].set(xlabel="block length (sweeps)", ylabel="standard error of mean |M|")
+axes[1].annotate(
+    f"{len(values) // 5000} blocks remain",
+    xy=(5000, errors[-1]),
+    xytext=(-110, 24),
+    textcoords="offset points",
+    arrowprops={"arrowstyle": "->"},
+)
+fig.tight_layout()
+fig.savefig(EVIDENCE / "acf-binning.png", dpi=180)
+plt.close(fig)
+
+trend = "unresolved" if errors[-1] > 1.05 * errors[-3] else "plateau candidate"
+print(f"tau_int={correlation_time:.3f}; 5000-sweep block error={errors[-1]:.6g}; {trend}")

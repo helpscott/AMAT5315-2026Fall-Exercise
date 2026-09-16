@@ -1,0 +1,14 @@
+T=2.3 sampler mean_abs_M block4000_se block2000_4000_8000_se stable
+Metropolis 0.463053 0.019923 0.016513,0.019923,0.022327 false
+Wolff 0.436474 0.001561 0.001838,0.001561,0.001218 false
+d 1.330
+status agreement provisional
+Wolff_Tpeak_L32 2.348834
+Wolff_Tpeak_L64 2.311957
+Wolff_Tc_extrapolated 2.275079
+Wolff_relative_deviation_percent 0.2595
+block_length mean_Tc bootstrap_se valid failed_L32 failed_L64
+2000 2.275075 0.000676 500 0 0
+4000 2.275026 0.000611 500 0 0
+8000 2.275030 0.000578 500 0 0
+Wolff_sampling_error unresolved

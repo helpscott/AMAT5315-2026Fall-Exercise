@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
-import pathlib,numpy as np
-import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
-from common import rows
-ROOT=pathlib.Path(__file__).resolve().parents[1]; E=ROOT/'evidence';E.mkdir(exist_ok=True)
-fig,ax=plt.subplots(2,1,figsize=(7,5),sharex=True)
-for a,L,T in zip(ax,[64,64],[2.3,3.0]):
- p=ROOT/'artifacts'/f'T{T:.1f}'/'series.jsonl';
- if not p.exists(): continue
- rr=[r for r in rows(p) if abs(r['T']-T)<1e-6][:2000]; a.plot([r['sweep'] for r in rr],[abs(r['M']) for r in rr]);a.set_ylabel(f'|M| T={T}')
-ax[-1].set_xlabel('recorded sweep');plt.tight_layout();plt.savefig(E/'trace.png',dpi=150);plt.close()
+"""Plot the first 2000 measured sweeps at critical and hot temperatures."""
+
+import numpy as np
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from common import EVIDENCE, magnetizations, merged_metropolis
+
+
+EVIDENCE.mkdir(exist_ok=True)
+series = merged_metropolis(64)
+fig, axes = plt.subplots(2, 1, figsize=(8, 5.8), sharex=True, sharey=True)
+for axis, temperature, color in zip(axes, (2.3, 3.0), ("C3", "C0")):
+    values = np.abs(magnetizations(series[temperature])[:2000])
+    axis.plot(np.arange(1, len(values) + 1), values, lw=0.9, color=color)
+    axis.axhline(values.mean(), color="k", ls="--", lw=1, label=f"mean={values.mean():.3f}")
+    axis.set_ylabel(f"|M|, T={temperature:.1f}")
+    axis.legend(loc="upper right")
+axes[-1].set_xlabel("measurement sweep")
+fig.tight_layout()
+fig.savefig(EVIDENCE / "trace.png", dpi=180)
+plt.close(fig)

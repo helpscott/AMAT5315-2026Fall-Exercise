@@ -1,0 +1,6 @@
+T 2.300000
+metropolis_tau_sweeps 580.379025
+wolff_tau_moves 4.624810
+wolff_mean_cluster_size 941.065910
+wolff_tau_work 1.062561
+metropolis_to_wolff_work_ratio 546.21

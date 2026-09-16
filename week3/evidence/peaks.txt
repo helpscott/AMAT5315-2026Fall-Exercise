@@ -1,3 +1,6 @@
-L=32 T_peak=2.350998 max_chi=1952.587698
-L=64 T_peak=2.316046 max_chi=1473.095611
-Tc_extrapolated=2.281093
+L cold_mean_abs_M T_peak
+32 0.986196 2.350998
+64 0.986412 2.316046
+Tc_extrapolated 2.281093
+Tc_exact 2.269190
+relative_deviation_percent +0.5246
