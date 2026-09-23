@@ -1,0 +1,28 @@
+{
+  "reference_dt": 0.0025,
+  "runs": [
+    {
+      "dt": 0.02,
+      "relative_omega_error": 2.6276531395995678e-05
+    },
+    {
+      "dt": 0.0125,
+      "relative_omega_error": 3.934260621864454e-06
+    },
+    {
+      "dt": 0.01,
+      "relative_omega_error": 1.6035625727888538e-06
+    }
+  ],
+  "fitted_slope": 4.035329383476937,
+  "richardson_error_at_dt_0.01": 1.6473950705336793e-06,
+  "predicted_errors": {
+    "0.02": 2.6358321128538868e-05,
+    "0.0125": 4.021960621420116e-06,
+    "0.01": 1.6473950705336793e-06
+  },
+  "target": 5e-06,
+  "chosen_dt": 0.0125,
+  "chosen_predicted_error": 4.021960621420116e-06,
+  "chosen_measured_error": 3.934260621864454e-06
+}
