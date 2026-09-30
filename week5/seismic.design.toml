@@ -1,0 +1,28 @@
+usage = "seismic --experiment inputs/reflector.json --mode forward --every 3 --out artifacts/forward"
+description = "simulate acoustic waves and their derivatives; no unstated defaults"
+
+[args]
+experiment = "JSON file with the model, survey, source, units, background and perturbation"
+mode = "forward: pressure traces; born: Born scattered data; adjoint: migrated image"
+out = "output folder"
+
+[args.recording]
+every = "forward and adjoint only: frame interval in steps from step 0; default off"
+
+[args.reverse]
+data = "born_data.npy of a born run: receiver weights to back-propagate"
+
+[args.checkpoint]
+storage = "how adjoint keeps states: full (default) or treeverse"
+checkpoints = "treeverse only: saved-state slots beyond the initial state"
+
+[writes]
+stdout = "a header, then one tab-separated line per shot: shot, mode, data L2 norm"
+run_json = "experiment path, compact experiment metadata and recording index"
+result_json = "mode, shape, survey and reverse statistics"
+traces_npy = "forward float64 pressures [shot, step, receiver]"
+born_data_npy = "born float64 scattered data [shot, step, receiver]"
+image_npy = "adjoint float64 velocity sensitivity [z, x]"
+wavefield_npy = "recorded first-shot wavefield frames [frame, z, x]"
+echo_npy = "forward first-shot perturbed-minus-background frames [frame, z, x]"
+actions_json = "treeverse action schedule per shot"
