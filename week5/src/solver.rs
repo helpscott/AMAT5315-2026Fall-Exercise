@@ -1,8 +1,11 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-use crate::{enzyme, model::{advance, source_for, Prepared, State}};
+use crate::{
+    enzyme,
+    model::{Prepared, State, advance, source_for},
+};
 
 #[derive(Debug)]
 pub struct ForwardResult {
@@ -67,12 +70,20 @@ struct AdjointState {
 
 impl AdjointState {
     fn zeros(n: usize) -> Self {
-        Self { previous: vec![0.0; n], current: vec![0.0; n] }
+        Self {
+            previous: vec![0.0; n],
+            current: vec![0.0; n],
+        }
     }
 }
 
 fn velocity_with_perturbation(prepared: &Prepared) -> Vec<f64> {
-    prepared.background.iter().zip(&prepared.perturbation).map(|(a, b)| a + b).collect()
+    prepared
+        .background
+        .iter()
+        .zip(&prepared.perturbation)
+        .map(|(a, b)| a + b)
+        .collect()
 }
 
 pub fn forward(prepared: &Prepared, every: Option<usize>) -> Result<ForwardResult> {
@@ -104,12 +115,23 @@ pub fn forward(prepared: &Prepared, every: Option<usize>) -> Result<ForwardResul
             let state_step = step + 1;
             if shot == 0 && every.is_some_and(|stride| state_step % stride == 0) {
                 wavefield.extend(state.current.iter().map(|&x| x as f32));
-                echo.extend(perturbed_state.current.iter().zip(&state.current).map(|(a, b)| (a - b) as f32));
+                echo.extend(
+                    perturbed_state
+                        .current
+                        .iter()
+                        .zip(&state.current)
+                        .map(|(a, b)| (a - b) as f32),
+                );
                 frame_steps.push(state_step);
             }
         }
     }
-    Ok(ForwardResult { traces, wavefield, echo, frame_steps })
+    Ok(ForwardResult {
+        traces,
+        wavefield,
+        echo,
+        frame_steps,
+    })
 }
 
 pub fn born(prepared: &Prepared) -> Result<BornResult> {
@@ -123,12 +145,27 @@ pub fn born(prepared: &Prepared) -> Result<BornResult> {
         for step in 0..e.steps {
             let source = source_for(prepared, shot, step);
             let (next, d_next) = enzyme::jvp(
-                &state.previous, &tangent.previous, &state.current, &tangent.current,
-                &prepared.background, &prepared.perturbation, &prepared.damping, &source,
-                e.nx, e.nz, e.dx, e.dt,
+                &state.previous,
+                &tangent.previous,
+                &state.current,
+                &tangent.current,
+                &prepared.background,
+                &prepared.perturbation,
+                &prepared.damping,
+                &source,
+                e.nx,
+                e.nz,
+                e.dx,
+                e.dt,
             )?;
-            state = State { previous: state.current, current: next };
-            tangent = State { previous: tangent.current, current: d_next };
+            state = State {
+                previous: state.current,
+                current: next,
+            };
+            tangent = State {
+                previous: tangent.current,
+                current: d_next,
+            };
             for (receiver, [x, z]) in prepared.receivers.iter().copied().enumerate() {
                 data[(shot * e.steps + step) * nr + receiver] = tangent.current[z * e.nx + x];
             }
@@ -154,22 +191,41 @@ fn reverse_one(
     }
     let source = source_for(prepared, shot, step);
     let (d_previous, mut d_current, d_velocity) = enzyme::vjp(
-        &primal.previous, &primal.current, &prepared.background, &prepared.damping,
-        &source, &output.current, e.nx, e.nz, e.dx, e.dt,
+        &primal.previous,
+        &primal.current,
+        &prepared.background,
+        &prepared.damping,
+        &source,
+        &output.current,
+        e.nx,
+        e.nz,
+        e.dx,
+        e.dt,
     )?;
     ensure!(d_velocity.len() == n, "bad velocity adjoint length");
     for i in 0..n {
         d_current[i] += output.previous[i];
         image[i] += d_velocity[i];
     }
-    Ok(AdjointState { previous: d_previous, current: d_current })
+    Ok(AdjointState {
+        previous: d_previous,
+        current: d_current,
+    })
 }
 
-pub fn adjoint_full(prepared: &Prepared, data: &[f64], every: Option<usize>) -> Result<AdjointResult> {
+pub fn adjoint_full(
+    prepared: &Prepared,
+    data: &[f64],
+    every: Option<usize>,
+) -> Result<AdjointResult> {
     let e = &prepared.experiment;
     let n = e.nx * e.nz;
     let expected = prepared.shots.len() * e.steps * prepared.receivers.len();
-    ensure!(data.len() == expected, "data has {} values, expected {expected}", data.len());
+    ensure!(
+        data.len() == expected,
+        "data has {} values, expected {expected}",
+        data.len()
+    );
     let mut image = vec![0.0; n];
     let mut wavefield = Vec::new();
     let mut frame_steps = Vec::new();
@@ -179,7 +235,13 @@ pub fn adjoint_full(prepared: &Prepared, data: &[f64], every: Option<usize>) -> 
         let mut states = Vec::with_capacity(e.steps + 1);
         states.push(State::zeros(n));
         for step in 0..e.steps {
-            let next = advance(prepared, &prepared.background, shot, step, states.last().unwrap())?;
+            let next = advance(
+                prepared,
+                &prepared.background,
+                shot,
+                step,
+                states.last().unwrap(),
+            )?;
             states.push(next);
         }
         let mut adjoint = AdjointState::zeros(n);
@@ -188,7 +250,15 @@ pub fn adjoint_full(prepared: &Prepared, data: &[f64], every: Option<usize>) -> 
             frame_steps.push(e.steps);
         }
         for step in (0..e.steps).rev() {
-            adjoint = reverse_one(prepared, shot, step, &states[step], adjoint, data, &mut image)?;
+            adjoint = reverse_one(
+                prepared,
+                shot,
+                step,
+                &states[step],
+                adjoint,
+                data,
+                &mut image,
+            )?;
             if shot == 0 && every.is_some_and(|stride| step % stride == 0) {
                 wavefield.extend(adjoint.current.iter().map(|&x| x as f32));
                 frame_steps.push(step);
@@ -219,7 +289,9 @@ pub fn adjoint_full(prepared: &Prepared, data: &[f64], every: Option<usize>) -> 
 }
 
 fn binomial(n: usize, mut k: usize) -> u128 {
-    if k > n { return 0; }
+    if k > n {
+        return 0;
+    }
     k = k.min(n - k);
     let mut value = 1_u128;
     for i in 1..=k {
@@ -256,7 +328,13 @@ struct TreeverseContext<'a> {
 
 impl TreeverseContext<'_> {
     fn push(&mut self, action: &str, tau: usize, delta: usize, step: usize, depth: usize) {
-        self.log.actions.push(Action { action: action.into(), tau, delta, step, depth });
+        self.log.actions.push(Action {
+            action: action.into(),
+            tau,
+            delta,
+            step,
+            depth,
+        });
     }
 
     fn recurse(
@@ -274,7 +352,13 @@ impl TreeverseContext<'_> {
             let mut state = self.states.get(&beta).expect("valid restore").clone();
             self.push("restore", tau, delta, beta, depth);
             for step in beta..sigma {
-                state = advance(self.prepared, &self.prepared.background, self.shot, step, &state)?;
+                state = advance(
+                    self.prepared,
+                    &self.prepared.background,
+                    self.shot,
+                    step,
+                    &state,
+                )?;
                 self.push("call", tau, delta, step, depth);
             }
             self.states.insert(sigma, state);
@@ -289,9 +373,19 @@ impl TreeverseContext<'_> {
             phi = kappa;
             kappa = midpoint(delta, tau, sigma, phi);
         }
-        let output = gradient.unwrap_or_else(|| AdjointState::zeros(self.prepared.experiment.nx * self.prepared.experiment.nz));
+        let output = gradient.unwrap_or_else(|| {
+            AdjointState::zeros(self.prepared.experiment.nx * self.prepared.experiment.nz)
+        });
         let primal = self.states.get(&sigma).expect("scheduled state").clone();
-        let result = reverse_one(self.prepared, self.shot, sigma, &primal, output, self.data, self.image)?;
+        let result = reverse_one(
+            self.prepared,
+            self.shot,
+            sigma,
+            &primal,
+            output,
+            self.data,
+            self.image,
+        )?;
         self.push("grad", tau, delta, sigma, depth);
         if sigma > beta {
             self.states.remove(&sigma);
@@ -301,12 +395,23 @@ impl TreeverseContext<'_> {
     }
 }
 
-pub fn adjoint_treeverse(prepared: &Prepared, data: &[f64], checkpoints: usize) -> Result<AdjointResult> {
+pub fn adjoint_treeverse(
+    prepared: &Prepared,
+    data: &[f64],
+    checkpoints: usize,
+) -> Result<AdjointResult> {
     let e = &prepared.experiment;
-    ensure!(checkpoints >= 1, "treeverse needs at least one checkpoint slot");
+    ensure!(
+        checkpoints >= 1,
+        "treeverse needs at least one checkpoint slot"
+    );
     let n = e.nx * e.nz;
     let expected = prepared.shots.len() * e.steps * prepared.receivers.len();
-    ensure!(data.len() == expected, "data has {} values, expected {expected}", data.len());
+    ensure!(
+        data.len() == expected,
+        "data has {} values, expected {expected}",
+        data.len()
+    );
     let mut image = vec![0.0; n];
     let mut logs = Vec::new();
     let mut per_shot = Vec::new();
@@ -320,11 +425,24 @@ pub fn adjoint_treeverse(prepared: &Prepared, data: &[f64], checkpoints: usize) 
             data,
             image: &mut image,
             states,
-            log: ActionLog { actions: Vec::new(), peak_mem: 1 },
+            log: ActionLog {
+                actions: Vec::new(),
+                peak_mem: 1,
+            },
         };
         context.recurse(None, checkpoints, tau, 0, 0, e.steps, 0)?;
-        let calls = context.log.actions.iter().filter(|a| a.action == "call").count();
-        let grads = context.log.actions.iter().filter(|a| a.action == "grad").count();
+        let calls = context
+            .log
+            .actions
+            .iter()
+            .filter(|a| a.action == "call")
+            .count();
+        let grads = context
+            .log
+            .actions
+            .iter()
+            .filter(|a| a.action == "grad")
+            .count();
         per_shot.push(ShotStatistics {
             reverse_calls: grads,
             scheduler_forward_calls: calls,
@@ -361,7 +479,13 @@ mod tests {
         let expected = [(1, 28_680), (3, 1_695), (5, 990), (10, 642)];
         for (delta, calls) in expected {
             let tau = binomial_fit(240, delta);
-            fn count(delta: usize, mut tau: usize, beta: usize, sigma: usize, mut phi: usize) -> usize {
+            fn count(
+                delta: usize,
+                mut tau: usize,
+                beta: usize,
+                sigma: usize,
+                mut phi: usize,
+            ) -> usize {
                 let mut total = sigma - beta;
                 let delta = if sigma > beta { delta - 1 } else { delta };
                 let mut kappa = midpoint(delta, tau, sigma, phi);

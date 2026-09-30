@@ -26,6 +26,12 @@ cargo test --release
 cargo build --release
 ```
 
+After recreating all arrays and plots, run the consolidated acceptance check:
+
+```bash
+uv run scripts/verify_all.py
+```
+
 The local derivative smoke test requires `cube(2) = 8` and both Enzyme derivatives to equal 12. A second unit test checks the dot-product identity for one differentiated wave-equation step. The Treeverse unit test checks the four reference recomputation counts.
 
 ## Part 1 - forward and reverse AD

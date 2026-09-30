@@ -25,14 +25,25 @@ mod tests {
         let d_current: Vec<f64> = (0..n).map(|i| (i as f64 * 0.11).sin()).collect();
         let d_velocity: Vec<f64> = (0..n).map(|i| 0.01 * (i as f64 * 0.19).cos()).collect();
         let (_, tangent) = enzyme::jvp(
-            &previous, &d_previous, &current, &d_current, &velocity, &d_velocity,
-            &damping, &source, nx, nz, 1.0, 0.2,
-        ).unwrap();
+            &previous,
+            &d_previous,
+            &current,
+            &d_current,
+            &velocity,
+            &d_velocity,
+            &damping,
+            &source,
+            nx,
+            nz,
+            1.0,
+            0.2,
+        )
+        .unwrap();
         let weight: Vec<f64> = (0..n).map(|i| (i as f64 * 0.23).sin()).collect();
         let (a, b, c) = enzyme::vjp(
-            &previous, &current, &velocity, &damping, &source, &weight,
-            nx, nz, 1.0, 0.2,
-        ).unwrap();
+            &previous, &current, &velocity, &damping, &source, &weight, nx, nz, 1.0, 0.2,
+        )
+        .unwrap();
         let left: f64 = tangent.iter().zip(&weight).map(|(x, y)| x * y).sum();
         let right: f64 = a.iter().zip(&d_previous).map(|(x, y)| x * y).sum::<f64>()
             + b.iter().zip(&d_current).map(|(x, y)| x * y).sum::<f64>()
@@ -40,4 +51,3 @@ mod tests {
         assert!((left - right).abs() < 1e-11, "left={left}, right={right}");
     }
 }
-

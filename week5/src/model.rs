@@ -1,6 +1,6 @@
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::{fs::File, io::BufReader, path::Path};
 
 use crate::enzyme;
@@ -47,7 +47,10 @@ pub struct State {
 
 impl State {
     pub fn zeros(n: usize) -> Self {
-        Self { previous: vec![0.0; n], current: vec![0.0; n] }
+        Self {
+            previous: vec![0.0; n],
+            current: vec![0.0; n],
+        }
     }
 }
 
@@ -61,15 +64,37 @@ impl Experiment {
     }
 
     fn validate(&self) -> Result<()> {
-        ensure!(self.schema == "week5-seismic-experiment-v1", "unsupported schema {}", self.schema);
-        ensure!(self.background.len() == self.nz && self.perturbation.len() == self.nz, "field row count mismatch");
-        ensure!(self.background.iter().all(|row| row.len() == self.nx), "background shape mismatch");
-        ensure!(self.perturbation.iter().all(|row| row.len() == self.nx), "perturbation shape mismatch");
+        ensure!(
+            self.schema == "week5-seismic-experiment-v1",
+            "unsupported schema {}",
+            self.schema
+        );
+        ensure!(
+            self.background.len() == self.nz && self.perturbation.len() == self.nz,
+            "field row count mismatch"
+        );
+        ensure!(
+            self.background.iter().all(|row| row.len() == self.nx),
+            "background shape mismatch"
+        );
+        ensure!(
+            self.perturbation.iter().all(|row| row.len() == self.nx),
+            "perturbation shape mismatch"
+        );
         for &[x, z] in self.shots.iter().chain(self.receivers.iter()) {
-            ensure!(x.fract() == 0.0 && z.fract() == 0.0 && x >= 0.0 && z >= 0.0, "survey point [{x},{z}] is not a grid index");
-            ensure!((x as usize) < self.nx && (z as usize) < self.nz, "survey point [{x},{z}] outside grid");
+            ensure!(
+                x.fract() == 0.0 && z.fract() == 0.0 && x >= 0.0 && z >= 0.0,
+                "survey point [{x},{z}] is not a grid index"
+            );
+            ensure!(
+                (x as usize) < self.nx && (z as usize) < self.nz,
+                "survey point [{x},{z}] outside grid"
+            );
         }
-        ensure!(self.nx >= 3 && self.nz >= 3 && self.dx > 0.0 && self.dt > 0.0, "invalid grid");
+        ensure!(
+            self.nx >= 3 && self.nz >= 3 && self.dx > 0.0 && self.dt > 0.0,
+            "invalid grid"
+        );
         Ok(())
     }
 
@@ -110,10 +135,29 @@ impl Experiment {
                 damping[z * self.nx + x] = self.sponge_strength * taper * taper;
             }
         }
-        let shots: Vec<[usize; 2]> = self.shots.iter().map(|&[x, z]| [x as usize, z as usize]).collect();
-        let receivers: Vec<[usize; 2]> = self.receivers.iter().map(|&[x, z]| [x as usize, z as usize]).collect();
-        let source_footprints = shots.iter().map(|&shot| gaussian(self.nx, self.nz, shot)).collect();
-        Ok(Prepared { experiment: self, background, perturbation, damping, shots, receivers, source_footprints })
+        let shots: Vec<[usize; 2]> = self
+            .shots
+            .iter()
+            .map(|&[x, z]| [x as usize, z as usize])
+            .collect();
+        let receivers: Vec<[usize; 2]> = self
+            .receivers
+            .iter()
+            .map(|&[x, z]| [x as usize, z as usize])
+            .collect();
+        let source_footprints = shots
+            .iter()
+            .map(|&shot| gaussian(self.nx, self.nz, shot))
+            .collect();
+        Ok(Prepared {
+            experiment: self,
+            background,
+            perturbation,
+            damping,
+            shots,
+            receivers,
+            source_footprints,
+        })
     }
 }
 
@@ -138,23 +182,43 @@ fn gaussian(nx: usize, nz: usize, [sx, sz]: [usize; 2]) -> Vec<f64> {
 
 pub fn source_scale(experiment: &Experiment, step: usize) -> f64 {
     let time = step as f64 * experiment.dt;
-    let theta = std::f64::consts::PI * experiment.source_frequency * (time - experiment.source_peak_time);
+    let theta =
+        std::f64::consts::PI * experiment.source_frequency * (time - experiment.source_peak_time);
     experiment.source_amplitude * (1.0 - 2.0 * theta * theta) * (-theta * theta).exp()
 }
 
 pub fn source_for(prepared: &Prepared, shot: usize, step: usize) -> Vec<f64> {
     let scale = source_scale(&prepared.experiment, step);
-    prepared.source_footprints[shot].iter().map(|x| scale * x).collect()
+    prepared.source_footprints[shot]
+        .iter()
+        .map(|x| scale * x)
+        .collect()
 }
 
-pub fn advance(prepared: &Prepared, velocity: &[f64], shot: usize, step: usize, state: &State) -> Result<State> {
+pub fn advance(
+    prepared: &Prepared,
+    velocity: &[f64],
+    shot: usize,
+    step: usize,
+    state: &State,
+) -> Result<State> {
     let e = &prepared.experiment;
     let source = source_for(prepared, shot, step);
     let next = enzyme::primal(
-        &state.previous, &state.current, velocity, &prepared.damping, &source,
-        e.nx, e.nz, e.dx, e.dt,
+        &state.previous,
+        &state.current,
+        velocity,
+        &prepared.damping,
+        &source,
+        e.nx,
+        e.nz,
+        e.dx,
+        e.dt,
     )?;
-    Ok(State { previous: state.current.clone(), current: next })
+    Ok(State {
+        previous: state.current.clone(),
+        current: next,
+    })
 }
 
 pub fn l2(values: &[f64]) -> f64 {

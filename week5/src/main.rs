@@ -1,10 +1,17 @@
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, ensure};
 use clap::{Parser, ValueEnum};
 use ndarray::{Array2, Array3};
 use ndarray_npy::{read_npy, write_npy};
-use seismic::{model::{l2, Experiment}, solver};
-use serde_json::{json, Map, Value};
-use std::{fs::{self, File}, io::BufWriter, path::{Path, PathBuf}};
+use seismic::{
+    model::{Experiment, l2},
+    solver,
+};
+use serde_json::{Map, Value, json};
+use std::{
+    fs::{self, File},
+    io::BufWriter,
+    path::{Path, PathBuf},
+};
 
 #[derive(Clone, Debug, ValueEnum)]
 enum Mode {
@@ -53,7 +60,11 @@ fn main() -> Result<()> {
     let compact = experiment.compact_json();
     let prepared = experiment.prepare()?;
     let e = &prepared.experiment;
-    let mode_name = match cli.mode { Mode::Forward => "forward", Mode::Born => "born", Mode::Adjoint => "adjoint" };
+    let mode_name = match cli.mode {
+        Mode::Forward => "forward",
+        Mode::Born => "born",
+        Mode::Adjoint => "adjoint",
+    };
     let mut run = Map::new();
     run.insert("experiment_file".into(), json!(cli.experiment));
     run.insert("experiment".into(), compact);
@@ -72,7 +83,10 @@ fn main() -> Result<()> {
     match cli.mode {
         Mode::Forward => {
             let output = solver::forward(&prepared, cli.every)?;
-            let traces = Array3::from_shape_vec((prepared.shots.len(), e.steps, prepared.receivers.len()), output.traces.clone())?;
+            let traces = Array3::from_shape_vec(
+                (prepared.shots.len(), e.steps, prepared.receivers.len()),
+                output.traces.clone(),
+            )?;
             write_npy(cli.out.join("traces.npy"), &traces)?;
             for shot in 0..prepared.shots.len() {
                 let start = shot * e.steps * prepared.receivers.len();
@@ -80,8 +94,12 @@ fn main() -> Result<()> {
                 println!("{shot}\tforward\t{:.12e}", l2(&output.traces[start..end]));
             }
             if cli.every.is_some() {
-                let wavefield = Array3::from_shape_vec((output.frame_steps.len(), e.nz, e.nx), output.wavefield)?;
-                let echo = Array3::from_shape_vec((output.frame_steps.len(), e.nz, e.nx), output.echo)?;
+                let wavefield = Array3::from_shape_vec(
+                    (output.frame_steps.len(), e.nz, e.nx),
+                    output.wavefield,
+                )?;
+                let echo =
+                    Array3::from_shape_vec((output.frame_steps.len(), e.nz, e.nx), output.echo)?;
                 write_npy(cli.out.join("wavefield.npy"), &wavefield)?;
                 write_npy(cli.out.join("echo.npy"), &echo)?;
                 run.insert("recording".into(), json!({
@@ -93,7 +111,10 @@ fn main() -> Result<()> {
         }
         Mode::Born => {
             let output = solver::born(&prepared)?;
-            let data = Array3::from_shape_vec((prepared.shots.len(), e.steps, prepared.receivers.len()), output.data.clone())?;
+            let data = Array3::from_shape_vec(
+                (prepared.shots.len(), e.steps, prepared.receivers.len()),
+                output.data.clone(),
+            )?;
             write_npy(cli.out.join("born_data.npy"), &data)?;
             for shot in 0..prepared.shots.len() {
                 let start = shot * e.steps * prepared.receivers.len();
@@ -103,25 +124,40 @@ fn main() -> Result<()> {
         }
         Mode::Adjoint => {
             let data_path = cli.data.as_ref().context("adjoint mode requires --data")?;
-            let data: Array3<f64> = read_npy(data_path)
-                .with_context(|| format!("read {}", data_path.display()))?;
-            ensure!(data.shape() == [prepared.shots.len(), e.steps, prepared.receivers.len()], "data shape {:?} does not match experiment", data.shape());
+            let data: Array3<f64> =
+                read_npy(data_path).with_context(|| format!("read {}", data_path.display()))?;
+            ensure!(
+                data.shape() == [prepared.shots.len(), e.steps, prepared.receivers.len()],
+                "data shape {:?} does not match experiment",
+                data.shape()
+            );
             let flat = data.into_raw_vec_and_offset().0;
             let output = match cli.storage {
                 Storage::Full => {
-                    ensure!(cli.checkpoints.is_none(), "--checkpoints is only valid with treeverse storage");
+                    ensure!(
+                        cli.checkpoints.is_none(),
+                        "--checkpoints is only valid with treeverse storage"
+                    );
                     solver::adjoint_full(&prepared, &flat, cli.every)?
                 }
                 Storage::Treeverse => {
                     ensure!(cli.every.is_none(), "treeverse recording is not supported");
-                    solver::adjoint_treeverse(&prepared, &flat, cli.checkpoints.context("treeverse storage requires --checkpoints")?)?
+                    solver::adjoint_treeverse(
+                        &prepared,
+                        &flat,
+                        cli.checkpoints
+                            .context("treeverse storage requires --checkpoints")?,
+                    )?
                 }
             };
             let image = Array2::from_shape_vec((e.nz, e.nx), output.image.clone())?;
             write_npy(cli.out.join("image.npy"), &image)?;
             println!("all\tadjoint\t{:.12e}", l2(&output.image));
             if !output.wavefield.is_empty() {
-                let wavefield = Array3::from_shape_vec((output.frame_steps.len(), e.nz, e.nx), output.wavefield)?;
+                let wavefield = Array3::from_shape_vec(
+                    (output.frame_steps.len(), e.nz, e.nx),
+                    output.wavefield,
+                )?;
                 write_npy(cli.out.join("wavefield.npy"), &wavefield)?;
                 run.insert("recording".into(), json!({
                     "every": cli.every,
@@ -132,7 +168,10 @@ fn main() -> Result<()> {
             for (shot, log) in output.action_logs.iter().enumerate() {
                 write_json(&cli.out.join(format!("actions-{shot}.json")), log)?;
             }
-            result.as_object_mut().unwrap().insert("statistics".into(), serde_json::to_value(&output.statistics)?);
+            result.as_object_mut().unwrap().insert(
+                "statistics".into(),
+                serde_json::to_value(&output.statistics)?,
+            );
         }
     }
     write_json(&cli.out.join("run.json"), &Value::Object(run))?;

@@ -1,4 +1,4 @@
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 
 unsafe extern "C" {
     fn enzyme_cube(x: f64, out: *mut f64);
@@ -50,7 +50,11 @@ unsafe extern "C" {
 
 fn validate(n: usize, arrays: &[&[f64]]) -> Result<()> {
     for values in arrays {
-        ensure!(values.len() == n, "kernel slice has length {}, expected {n}", values.len());
+        ensure!(
+            values.len() == n,
+            "kernel slice has length {}, expected {n}",
+            values.len()
+        );
     }
     Ok(())
 }
@@ -77,8 +81,16 @@ pub fn primal(
     let mut next = vec![0.0; n];
     unsafe {
         enzyme_step_primal(
-            previous.as_ptr(), current.as_ptr(), velocity.as_ptr(), damping.as_ptr(),
-            source.as_ptr(), next.as_mut_ptr(), nx, nz, dx, dt,
+            previous.as_ptr(),
+            current.as_ptr(),
+            velocity.as_ptr(),
+            damping.as_ptr(),
+            source.as_ptr(),
+            next.as_mut_ptr(),
+            nx,
+            nz,
+            dx,
+            dt,
         )
     };
     Ok(next)
@@ -99,14 +111,30 @@ pub fn jvp(
     dt: f64,
 ) -> Result<(Vec<f64>, Vec<f64>)> {
     let n = nx * nz;
-    validate(n, &[previous, d_previous, current, d_current, velocity, d_velocity, damping, source])?;
+    validate(
+        n,
+        &[
+            previous, d_previous, current, d_current, velocity, d_velocity, damping, source,
+        ],
+    )?;
     let mut next = vec![0.0; n];
     let mut d_next = vec![0.0; n];
     unsafe {
         enzyme_step_jvp(
-            previous.as_ptr(), d_previous.as_ptr(), current.as_ptr(), d_current.as_ptr(),
-            velocity.as_ptr(), d_velocity.as_ptr(), damping.as_ptr(), source.as_ptr(),
-            next.as_mut_ptr(), d_next.as_mut_ptr(), nx, nz, dx, dt,
+            previous.as_ptr(),
+            d_previous.as_ptr(),
+            current.as_ptr(),
+            d_current.as_ptr(),
+            velocity.as_ptr(),
+            d_velocity.as_ptr(),
+            damping.as_ptr(),
+            source.as_ptr(),
+            next.as_mut_ptr(),
+            d_next.as_mut_ptr(),
+            nx,
+            nz,
+            dx,
+            dt,
         )
     };
     Ok((next, d_next))
@@ -125,7 +153,10 @@ pub fn vjp(
     dt: f64,
 ) -> Result<(Vec<f64>, Vec<f64>, Vec<f64>)> {
     let n = nx * nz;
-    validate(n, &[previous, current, velocity, damping, source, output_adjoint])?;
+    validate(
+        n,
+        &[previous, current, velocity, damping, source, output_adjoint],
+    )?;
     let mut d_previous = vec![0.0; n];
     let mut d_current = vec![0.0; n];
     let mut d_velocity = vec![0.0; n];
@@ -133,11 +164,21 @@ pub fn vjp(
     let mut d_next = output_adjoint.to_vec();
     unsafe {
         enzyme_step_vjp(
-            previous.as_ptr(), d_previous.as_mut_ptr(), current.as_ptr(), d_current.as_mut_ptr(),
-            velocity.as_ptr(), d_velocity.as_mut_ptr(), damping.as_ptr(), source.as_ptr(),
-            next.as_mut_ptr(), d_next.as_mut_ptr(), nx, nz, dx, dt,
+            previous.as_ptr(),
+            d_previous.as_mut_ptr(),
+            current.as_ptr(),
+            d_current.as_mut_ptr(),
+            velocity.as_ptr(),
+            d_velocity.as_mut_ptr(),
+            damping.as_ptr(),
+            source.as_ptr(),
+            next.as_mut_ptr(),
+            d_next.as_mut_ptr(),
+            nx,
+            nz,
+            dx,
+            dt,
         )
     };
     Ok((d_previous, d_current, d_velocity))
 }
-
